@@ -592,7 +592,9 @@
       this.run = run;
       this.status = 'playing';
       this.scope = whole ? 'all' : 'part';
-      if (whole) this.queue = queue;
+      // The place is always kept in terms of the whole sheet, also while a touched word
+      // or square plays, so step mode can carry on from wherever the writing is.
+      this.queue = cells.filter((cell) => cell.writer);
       refreshToolbar();
 
       let first = from;
@@ -601,7 +603,7 @@
         // they are filled in reading order.
         this.layout(queue, first);
         for (let i = first.cell; i < queue.length; i += 1) {
-          const done = await this.draw(queue[i], run, queue.length > 1, i === first.cell ? first.stroke : 0, whole ? i : null);
+          const done = await this.draw(queue[i], run, queue.length > 1, i === first.cell ? first.stroke : 0, this.queue.indexOf(queue[i]));
           if (!done) return;
         }
         this.setCurrent(null);
@@ -617,22 +619,20 @@
     },
 
     /* Write the strokes of one square from stroke `from` on. `index` is its place in the
-       whole sheet, or null when only a word or square is being written. */
+       whole sheet. */
     async draw(cell, run, follow, from, index) {
       this.setCurrent(cell);
       if (follow) {
         cell.root.scrollIntoView({ block: 'nearest', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
       }
       for (let i = from; i < cell.strokes; i += 1) {
-        if (index !== null) {
-          this.at = { cell: index, stroke: i };
-          this.shown = i + 1; // the stroke being written
-          refreshToolbar();
-        }
+        this.at = { cell: index, stroke: i };
+        this.shown = i + 1; // the stroke being written
+        refreshToolbar();
         cell.count.textContent = `${i + 1} / ${cell.strokes}`;
         const result = await cell.writer.animateStroke(i);
         if (run.cancelled || !result || result.canceled) return false;
-        if (index !== null) this.at = { cell: index, stroke: i + 1 };
+        this.at = { cell: index, stroke: i + 1 };
         const gap = i < cell.strokes - 1 ? STROKE_GAP : CHAR_GAP;
         if (!(await this.wait(gap / settings.speed, run))) return false;
       }
@@ -654,10 +654,11 @@
     /* One stroke forward (+1) or back (-1) through the whole sheet. Whatever was playing
        stops where it is; forward writes the next stroke, back takes the last one away. */
     async step(direction) {
-      const fresh = this.scope !== 'all' || !this.queue.length;
+      // Fresh: nothing has been written yet (the sheet is new), so start at the very
+      // beginning. Otherwise carry on from the stroke on screen, wherever that is.
+      const fresh = this.scope === null || !this.queue.length;
       if (fresh && direction < 0) return; // already at the beginning
       if (fresh) {
-        // Nothing of the whole sheet to continue from: start at the very beginning.
         cancelAutoplay();
         this.stop();
         this.queue = cells.filter((cell) => cell.writer);
@@ -670,6 +671,7 @@
       const run = { cancelled: false };
       this.run = run;
       this.status = 'stepping';
+      this.scope = 'all'; // from here on, Reproduzir carries on through the whole sheet
 
       const queue = this.queue;
       // The stroke shown as current (also one caught halfway) counts as written, so the
@@ -784,7 +786,7 @@
     const ready = cells.some((cell) => cell.writer);
     playButton.innerHTML = `${icon}<span>${label}</span>`;
     playButton.disabled = action !== 'pause' && !ready;
-    const atStart = player.scope !== 'all' || (player.at.cell === 0 && player.at.stroke === 0);
+    const atStart = !player.scope || (player.at.cell === 0 && player.shown === 0);
     stepBackButton.disabled = !ready || atStart;
     stepNextButton.disabled = !ready;
     showWhere();
@@ -793,7 +795,7 @@
   /* Between the step arrows: the character being written and its stroke, "我 3 / 7", the
      same numbers as under the square. A dash while the whole sheet is not being written. */
   function showWhere() {
-    const cell = player.scope === 'all' ? player.queue[player.at.cell] : null;
+    const cell = player.scope ? player.queue[player.at.cell] : null;
     if (!cell) {
       stepWhere.textContent = '–';
       return;
