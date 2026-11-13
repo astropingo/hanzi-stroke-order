@@ -1,0 +1,15 @@
+dictionary.json is derived from CC-CEDICT (https://cc-cedict.org/wiki/), a
+Chinese-English dictionary maintained by MDBG and its contributors.
+
+CC-CEDICT, and therefore dictionary.json, is licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International License:
+https://creativecommons.org/licenses/by-sa/4.0/
+
+Changes made: one entry is kept per word, pinyin is written with tone marks, senses are
+shortened, and cross-references are removed. See tools/build_dictionary.py.
+
+radicals.json is derived from dictionary.txt of Make Me a Hanzi
+(https://github.com/skishore/makemeahanzi), the project the stroke data comes from.
+See that project's COPYING file for its license terms. Changes made: only each
+character's radical and each radical's first pinyin and English meaning are kept, and a
+few radical forms without a meaning were filled in. See tools/build_radicals.py.

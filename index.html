@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ordem dos Traços</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' fill='white' stroke='%233d9b76' stroke-width='3'/%3E%3Cpath d='M16 2v28M2 16h28' stroke='%233d9b76' stroke-width='1.5' stroke-dasharray='3 3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-layout="mi">
+  <div class="page">
+
+    <header class="masthead">
+      <div class="mark" id="mark" lang="zh" aria-hidden="true">
+        <span class="mark-cell" data-char="笔">笔</span><span class="mark-cell" data-char="顺">顺</span>
+      </div>
+      <div>
+        <h1>Ordem dos Traços</h1>
+        <p>Digite algo em chinês. Cada caractere ganha um quadrado onde você pode vê-lo
+          sendo escrito, traço por traço.</p>
+      </div>
+    </header>
+
+    <section class="entry">
+      <label class="visually-hidden" for="text">Texto em chinês</label>
+      <div class="entry-box">
+        <textarea id="text" lang="zh" rows="2" spellcheck="false" autocomplete="off"
+          autocapitalize="off" placeholder="Digite ou cole chinês aqui"></textarea>
+        <button type="button" id="clear" class="text-button">Limpar</button>
+      </div>
+
+      <div class="examples" id="examples">
+        <span>Experimente</span>
+        <button type="button" lang="zh">你好</button>
+        <button type="button" lang="zh">我喜欢学习中文</button>
+        <button type="button" lang="zh">我没有钱</button>
+        <button type="button" lang="zh">脱裤子放屁</button>
+      </div>
+    </section>
+
+    <div class="sheet-bar">
+      <div class="transport">
+        <button type="button" id="play" class="button primary" title="Pausar ou reproduzir (barra de espaço)" disabled></button>
+        <div class="stepper" role="group" aria-labelledby="stepper-label"
+          title="Veja um traço de cada vez: a escrita pausa e você avança ou volta quando quiser.">
+          <span class="stepper-label" id="stepper-label">Traço a traço</span>
+          <div class="stepper-controls">
+            <button type="button" id="step-back" class="step" title="Pausa e apaga o último traço (tecla ←)" aria-label="Voltar um traço" disabled>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>
+            </button>
+            <output class="stepper-where" id="step-where" aria-live="off"></output>
+            <button type="button" id="step-next" class="step" title="Pausa e escreve o próximo traço (tecla →)" aria-label="Avançar um traço" disabled>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+            </button>
+          </div>
+          <span class="stepper-keys" aria-hidden="true"><kbd>←</kbd><kbd>→</kbd></span>
+        </div>
+      </div>
+
+      <div class="sheet-bar-end">
+        <div class="speed">
+          <span id="speed-label">Velocidade</span>
+          <div class="segmented compact" id="speed" role="radiogroup" aria-labelledby="speed-label">
+            <label><input type="radio" name="speed" value="0.5"><span>Devagar</span></label>
+            <label><input type="radio" name="speed" value="1" checked><span>Normal</span></label>
+            <label><input type="radio" name="speed" value="2"><span>Rápido</span></label>
+          </div>
+        </div>
+
+        <div class="settings">
+          <button type="button" id="settings-button" class="button" aria-expanded="false" aria-controls="settings-panel">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.6 0h2.8l.4 2.2 1.3.6 1.9-1.3 2 2-1.3 1.9.6 1.3 2.2.4v2.8l-2.2.4-.6 1.3 1.3 1.9-2 2-1.9-1.3-1.3.6-.4 2.2H6.6l-.4-2.2-1.3-.6-1.9 1.3-2-2 1.3-1.9-.6-1.3L0 9.4V6.6l2.2-.4.6-1.3-1.3-1.9 2-2 1.9 1.3 1.3-.6zM8 5.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z"/></svg>
+            <span>Configurações</span>
+          </button>
+
+          <div class="settings-panel" id="settings-panel" role="group" aria-label="Configurações" hidden>
+            <div class="setting">
+              <span id="split-label">Agrupar quadrados por</span>
+              <div class="segmented" id="split" role="radiogroup" aria-labelledby="split-label">
+                <label><input type="radio" name="split" value="auto" checked><span>Palavras</span></label>
+                <label><input type="radio" name="split" value="chars"><span>Caracteres</span></label>
+              </div>
+            </div>
+
+            <div class="setting">
+              <span id="layout-label">Layout do quadrado</span>
+              <div class="segmented layout" id="layout" role="radiogroup" aria-labelledby="layout-label">
+                <label title="米字格: linhas horizontal, vertical e diagonais"><input type="radio" name="layout" value="mi" checked><span><svg viewBox="0 0 16 16" aria-hidden="true"><rect x=".75" y=".75" width="14.5" height="14.5"/><path d="M8 1v14M1 8h14M1 1l14 14M15 1 1 15"/></svg><span lang="zh">米字格</span></span></label>
+                <label title="田字格: linhas horizontal e vertical"><input type="radio" name="layout" value="tian"><span><svg viewBox="0 0 16 16" aria-hidden="true"><rect x=".75" y=".75" width="14.5" height="14.5"/><path d="M8 1v14M1 8h14"/></svg><span lang="zh">田字格</span></span></label>
+              </div>
+            </div>
+
+            <label class="check"><input type="checkbox" id="repeat" checked>
+              <span>Repetir<small>Recomeça do início quando chega ao fim.</small></span></label>
+            <label class="check"><input type="checkbox" id="outline" checked>
+              <span>Contorno<small>Mostra o caractere clarinho por trás enquanto é escrito.</small></span></label>
+            <label class="check"><input type="checkbox" id="radical" checked>
+              <span>Radical em vermelho<small>Pinta de vermelho os traços do radical.</small></span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p id="status" class="status" role="status"></p>
+
+    <main id="sheet" class="sheet" aria-label="Quadrados"></main>
+
+    <footer class="credits">
+      <p class="author">Desenvolvido por: Mvpetri · <span lang="zh">星企鹅</span></p>
+      <p>Desenhado com <a href="https://github.com/chanind/hanzi-writer">Hanzi Writer</a>.
+        Traços e radicais de <a href="https://github.com/skishore/makemeahanzi">Make Me a Hanzi</a>.
+        Significados do <a href="https://cc-cedict.org/wiki/">CC-CEDICT</a>.</p>
+    </footer>
+  </div>
+
+  <script src="lib/hanzi-writer.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

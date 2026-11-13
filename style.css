@@ -1,0 +1,877 @@
+/* Ordem dos Traços: a page that looks like 拼音田字格 exercise paper.
+   Square corners are paper; rounded corners are things you press. */
+
+@font-face {
+  font-family: "Andika";
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/andika-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215;
+}
+@font-face {
+  font-family: "Andika";
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/andika-latin-ext-400-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113;
+}
+@font-face {
+  font-family: "Andika";
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/andika-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215;
+}
+@font-face {
+  font-family: "Andika";
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/andika-latin-ext-700-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113;
+}
+
+:root {
+  --paper: #ffffff;
+  --desk: #eef3ef;
+  --grid: #3d9b76;        /* the green of exercise-book squares */
+  --grid-soft: #b3d6c6;
+  --leaf: #17654c;        /* buttons and anything active */
+  --leaf-dark: #0f4d3a;
+  --ink: #1f2528;
+  --pencil: #5f6e67;      /* quieter text */
+  --red: #d2382d;         /* teacher's pen: radicals and errors */
+  --rule: #d2dfd7;
+
+  --cell: 128px;          /* side of one square */
+  --staff: 38px;          /* height of the pinyin strip above it */
+  --line: 1.5px;
+
+  /* The guide lines inside a square. 田字格 has a dashed cross; 米字格 adds the diagonals. */
+  --grid-tian: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M50 0V100M0 50H100' fill='none' stroke='%23b3d6c6' stroke-width='1' stroke-dasharray='4 4'/%3E%3C/svg%3E");
+  --grid-mi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M50 0V100M0 50H100M0 0L100 100M100 0L0 100' fill='none' stroke='%23b3d6c6' stroke-width='1' stroke-dasharray='4 4'/%3E%3C/svg%3E");
+  --grid-lines: var(--grid-mi);
+
+  --han: "Kaiti SC", "STKaiti", "KaiTi", "Kaiti TC", "AR PL UKai CN", "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  --ui: "Andika", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body[data-layout="tian"] {
+  --grid-lines: var(--grid-tian);
+}
+
+body {
+  margin: 0;
+  background: var(--desk);
+  color: var(--ink);
+  font: 400 16px/1.5 var(--ui);
+  -webkit-text-size-adjust: 100%;
+}
+
+:focus-visible {
+  outline: 3px solid rgba(23, 101, 76, 0.45);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px 28px 64px;
+}
+
+/* ------------------------------------------------------------------ masthead */
+
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 30px;
+}
+
+.mark {
+  display: flex;
+  flex: none;
+}
+
+.mark-cell {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border: var(--line) solid var(--grid);
+  background: var(--paper) var(--grid-lines) center / 100% 100% no-repeat;
+  font: 46px/1 var(--han);
+}
+
+.mark-cell + .mark-cell {
+  margin-left: calc(-1 * var(--line));
+}
+
+.mark-cell svg {
+  display: block;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.masthead p {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--pencil);
+}
+
+/* ------------------------------------------------------------------ text entry */
+
+.entry-box {
+  position: relative;
+}
+
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  padding: 16px 92px 16px 20px;
+  border: var(--line) solid var(--grid);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 30px/1.45 var(--han);
+  resize: vertical;
+}
+
+textarea::placeholder {
+  color: #8b9992;
+  font: 18px/2.4 var(--ui);
+}
+
+textarea:focus-visible {
+  border-color: var(--leaf);
+  outline-offset: 0;
+}
+
+.text-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--leaf);
+  font: 400 14.5px/1.4 var(--ui);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.text-button:hover {
+  background: var(--desk);
+}
+
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 14px;
+  color: var(--pencil);
+  font-size: 14.5px;
+}
+
+.examples button {
+  padding: 6px 12px 7px;
+  border: 1px dashed var(--grid);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: 20px/1.1 var(--han);
+  cursor: pointer;
+}
+
+.examples button:hover {
+  border-style: solid;
+  background: var(--paper);
+}
+
+/* ------------------------------------------------------------------ controls */
+
+.segmented {
+  display: inline-flex;
+  overflow: hidden;
+  border: var(--line) solid var(--leaf);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.segmented label {
+  position: relative;
+  cursor: pointer;
+}
+
+.segmented label + label {
+  border-left: var(--line) solid var(--leaf);
+}
+
+.segmented input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segmented span {
+  display: block;
+  padding: 6px 14px;
+  color: var(--leaf);
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+
+/* Layout do quadrado: a small drawing of each grid next to its name. */
+.segmented.layout > label > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+}
+
+.segmented.layout svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+}
+
+.segmented.layout rect {
+  stroke-width: 1.5;
+}
+
+.segmented.layout path {
+  stroke-width: 1;
+  stroke-dasharray: 1.6 1.4;
+}
+
+.segmented.layout [lang="zh"] {
+  padding: 0;
+  color: inherit; /* white when its option is chosen */
+  font: 16px/1.25 var(--han);
+}
+
+.segmented input:checked + span {
+  background: var(--leaf);
+  color: #fff;
+}
+
+.segmented input:focus-visible + span {
+  outline: 3px solid rgba(23, 101, 76, 0.45);
+  outline-offset: -3px;
+}
+
+.segmented input:checked:focus-visible + span {
+  outline-color: rgba(255, 255, 255, 0.8);
+}
+
+/* The bar right above the squares: Pausar / Reproduzir on the left; speed and the
+   settings on the right. It stays in view while the sheet scrolls. */
+.sheet-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 30px -28px 0;
+  padding: 12px 28px;
+  background: rgba(238, 243, 239, 0.94);
+  backdrop-filter: blur(6px);
+}
+
+.sheet-bar-end {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.settings {
+  position: relative;
+}
+
+.settings-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 330px;
+  padding: 18px 20px 20px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 10px 30px rgba(31, 37, 40, 0.14);
+}
+
+.settings-panel[hidden] {
+  display: none;
+}
+
+.setting {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--pencil);
+  font-size: 14px;
+}
+
+.setting + .check {
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+
+.settings-panel .check {
+  align-items: flex-start;
+}
+
+.settings-panel .check input {
+  margin-top: 2px;
+}
+
+.settings-panel .check span {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-panel small {
+  color: var(--pencil);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.button[aria-expanded="true"] {
+  background: #e3efe8;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 16px 8px;
+  border: var(--line) solid var(--leaf);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--leaf);
+  font: 700 15px/1.4 var(--ui);
+  cursor: pointer;
+}
+
+.button svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.button:hover:not(:disabled) {
+  background: #e3efe8;
+}
+
+.button.primary {
+  min-width: 176px; /* fits all three labels, so the button keeps its size */
+  background: var(--leaf);
+  color: #fff;
+}
+
+.button.primary:hover:not(:disabled) {
+  border-color: var(--leaf-dark);
+  background: var(--leaf-dark);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.speed,
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  cursor: pointer;
+}
+
+.speed {
+  cursor: default;
+}
+
+.segmented.compact span {
+  padding: 5px 12px;
+  font-size: 14px;
+}
+
+/* Traço a traço: its own labelled group, set apart from the main button by a thin rule.
+   In the middle, where the writing is (character and stroke); on either side, the
+   arrows; after it, the keys that do the same. Quiet colours, so it does not compete
+   with the characters. */
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 20px;
+  border-left: 1px solid var(--rule);
+  color: var(--pencil);
+  font-size: 14px;
+}
+
+.stepper-controls {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.step {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--leaf);
+  cursor: pointer;
+}
+
+.step svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.step:hover:not(:disabled) {
+  background: #e3efe8;
+}
+
+.step:disabled {
+  color: var(--pencil);
+  opacity: 0.35;
+  cursor: default;
+}
+
+.stepper-where {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  min-width: 70px;
+  padding: 0 4px;
+  color: var(--pencil);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stepper-where [lang="zh"] {
+  color: var(--ink);
+  font: 18px/1 var(--han);
+}
+
+.stepper-keys {
+  display: flex;
+  gap: 3px;
+}
+
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--pencil);
+  font: 12px/1 var(--ui);
+}
+
+.check input {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--leaf);
+}
+
+.status {
+  margin: 4px 0 10px;
+  color: var(--pencil);
+  font-size: 14.5px;
+}
+
+.status:empty {
+  display: none;
+}
+
+.status.is-error {
+  color: var(--red);
+}
+
+/* ------------------------------------------------------------------ the sheet of squares */
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 34px;
+  min-height: 300px;
+  margin-top: 0;
+  padding: 32px 32px 36px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 30px 26px;
+}
+
+.word {
+  --n: 1; /* number of characters, set from the script */
+  max-width: 100%;
+}
+
+.strip {
+  display: flex;
+  flex-wrap: wrap; /* a word longer than the sheet continues on the next row */
+  row-gap: 14px;
+}
+
+.cell {
+  flex: none;
+  width: var(--cell);
+  scroll-margin: 96px 0 48px;
+}
+
+.cell + .cell {
+  margin-left: calc(-1 * var(--line));
+}
+
+/* The pinyin strip: the four-line staff printed above each square. */
+.pinyin {
+  display: grid;
+  place-items: center;
+  height: var(--staff);
+  border: var(--line) solid var(--grid);
+  border-bottom: 0;
+  background-color: var(--paper);
+  background-image:
+    repeating-linear-gradient(90deg, var(--grid-soft) 0 4px, transparent 4px 8px),
+    repeating-linear-gradient(90deg, var(--grid-soft) 0 4px, transparent 4px 8px);
+  background-position: 0 33%, 0 68%;
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* The square: a dashed cross (田字格), plus the diagonals when 米字格 is chosen. */
+.square {
+  position: relative;
+  width: var(--cell);
+  height: var(--cell);
+  border: var(--line) solid var(--grid);
+  background: var(--paper) var(--grid-lines) center / 100% 100% no-repeat;
+}
+
+.square .target,
+.square svg {
+  display: block;
+}
+
+.ghost {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #cbd6d0;
+  font: calc(var(--cell) * 0.66) / 1 var(--han);
+}
+
+.cell.is-missing .ghost {
+  color: var(--ink);
+}
+
+.cell.is-ready .square {
+  cursor: pointer;
+}
+
+.count {
+  margin-top: 6px;
+  color: var(--pencil);
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap; /* one line, so every square has the same height */
+}
+
+/* The radical and its meaning, under the stroke count. It always takes two lines, even
+   when it needs one or is empty, so the ▶ buttons of neighbouring words line up. */
+.radical {
+  display: -webkit-box;
+  height: calc(2 * 1.3em);
+  overflow: hidden;
+  margin-top: 2px;
+  padding: 0 4px;
+  color: var(--pencil);
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.radical-char {
+  margin-right: 5px;
+  color: var(--red);
+  font: 16px/1 var(--han);
+}
+
+.cell.is-active {
+  position: relative;
+  z-index: 1;
+}
+
+.cell.is-active .pinyin {
+  background-color: #e3efe8;
+  color: var(--leaf);
+  font-weight: 700;
+}
+
+.cell.is-active .square {
+  outline: 2.5px solid var(--leaf);
+  outline-offset: -1.5px;
+}
+
+.cell.is-active .count {
+  color: var(--leaf);
+  font-weight: 700;
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: calc(var(--n) * var(--cell) - (var(--n) - 1) * var(--line));
+  max-width: 100%;
+  margin-top: 10px;
+}
+
+.word-play {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0 0 0 2px;
+  border: var(--line) solid var(--leaf);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--leaf);
+  cursor: pointer;
+}
+
+.word-play svg {
+  width: 10px;
+  height: 10px;
+  fill: currentColor;
+}
+
+.word-play:hover {
+  background: var(--leaf);
+  color: #fff;
+}
+
+.gloss {
+  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  margin: 0;
+  padding-top: 3px;
+  color: var(--pencil); /* a help, quieter than the characters themselves */
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+/* Punctuation and other text between words: shown small, so the sentence still reads. */
+.aside {
+  display: flex;
+  align-items: center;
+  height: calc(var(--staff) + var(--cell));
+  margin: 0 -8px;
+  padding-top: var(--staff);
+  color: #94a39b;
+  font: 28px/1 "Andika", var(--han);
+}
+
+.aside.is-words {
+  max-width: 16ch;
+  margin: 0;
+  color: var(--pencil);
+  font-size: 15px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: var(--pencil);
+}
+
+.empty .strip {
+  opacity: 0.45;
+}
+
+.empty p {
+  margin: 0;
+  max-width: 48ch;
+}
+
+.credits {
+  margin-top: 26px;
+  color: var(--pencil);
+  font-size: 13.5px;
+}
+
+.credits p {
+  margin: 0;
+}
+
+.credits .author {
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+
+.credits a {
+  color: var(--leaf);
+  text-underline-offset: 3px;
+}
+
+/* ------------------------------------------------------------------ smaller screens */
+
+@media (max-width: 760px) {
+  :root {
+    --cell: 104px;
+  }
+
+  .page {
+    padding: 24px 16px 48px;
+  }
+
+  .masthead {
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+
+  .mark-cell {
+    width: 54px;
+    height: 54px;
+    font-size: 36px;
+  }
+
+  h1 {
+    font-size: 27px;
+  }
+
+  textarea {
+    padding-left: 14px;
+    font-size: 26px;
+  }
+
+  .sheet-bar {
+    margin: 22px -16px 0;
+    padding: 12px 16px;
+  }
+
+  .sheet {
+    gap: 28px;
+    padding: 20px 16px 26px;
+  }
+
+  .line {
+    gap: 26px 18px;
+  }
+
+  /* Under a lone square there is no room beside the button, so the meaning goes below it. */
+  .word.is-single .note {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .word.is-single .gloss {
+    width: 100%;
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 430px) {
+  :root {
+    --cell: 86px;
+    --staff: 32px;
+  }
+
+  .pinyin {
+    font-size: 16px;
+  }
+
+  .masthead p {
+    font-size: 15px;
+  }
+}
