@@ -19,7 +19,7 @@ Você precisa de uma conta no GitHub. O GitHub Pages é grátis para repositóri
    **Create repository**.
 2. Na página do repositório, abra **Add file** e escolha **Upload files**.
 3. Abra a pasta do projeto no seu computador, selecione tudo o que está dentro dela
-   (`index.html`, `app.js`, `style.css`, `README.md` e as pastas `data`, `fonts`, `lib`,
+   (`index.html`, `app.js`, `gif.js`, `style.css`, `README.md` e as pastas `data`, `fonts`, `lib`,
    `tools`) e arraste para a página de upload. Espere todos os arquivos aparecerem na
    lista; `data/dictionary.json` tem 8 MB e é o que mais demora.
 4. Clique em **Commit changes**.
@@ -75,6 +75,12 @@ E abra <http://localhost:8000>.
 digita. Texto que não é chinês (pontuação, anotações) aparece pequeno entre as palavras.
 Cada nova linha na caixa começa uma nova fileira de quadrados.
 
+**Compartilhar.** O endereço da página acompanha o texto: enquanto você digita, ele vira
+algo como `https://SEU-USUARIO.github.io/stroke-order/?t=我没有钱`. Copie o endereço e envie;
+quem abrir o link já vê esse texto sendo escrito. Só o chinês entra no link (caracteres,
+pontuação chinesa, espaços e quebras de linha); o resto é descartado, e um link sem nenhum
+caractere chinês é ignorado.
+
 **Assistir.** Dois segundos depois que os quadrados aparecem, os caracteres começam a ser
 escritos sozinhos, um traço de cada vez, na ordem de leitura, e recomeçam quando chegam ao
 fim. Isso acontece de novo sempre que você muda o texto.
@@ -90,6 +96,11 @@ fim. Isso acontece de novo sempre que você muda o texto.
   **Recomeçar tudo**: clique nele para escrever o texto todo de novo, desde o começo.
 - A **Velocidade** (Devagar, Normal ou Rápido) fica acima dos quadrados, à direita, e pode
   ser mudada durante a escrita.
+- **Baixar GIF.** A setinha ⤓ ao lado de Configurações baixa um GIF animado com o texto
+  todo sendo escrito (até 60 caracteres). Para uma palavra só, passe o mouse sobre ela: a
+  mesma setinha aparece no canto do pinyin. O GIF segue as configurações do momento
+  (velocidade, contorno, radical em vermelho, 米字格 ou 田字格) e repete sem parar;
+  pontuação e anotações ficam de fora.
 
 **Configurações** (o botão ⚙ ao lado da velocidade). O padrão já serve para quase todo
 mundo; aqui ficam as opções:
@@ -113,6 +124,7 @@ ordem dos traços.
 index.html             a página
 style.css              a aparência
 app.js                 tudo o que a página faz
+gif.js                 cria os arquivos GIF (usado pelo Baixar GIF)
 data/dictionary.json   palavras com pinyin e significados em inglês (CC-CEDICT)
 data/radicals.json     o radical de cada caractere e o significado de cada radical
 lib/                   Hanzi Writer 3.7.3
@@ -135,7 +147,8 @@ tools/                 os scripts que geram os arquivos de data/ (o site não us
   aparece pela primeira vez, os mesmos arquivos que o Hanzi Writer usa por padrão. Isso
   precisa de internet.
 
-O seu texto e as suas configurações ficam guardados no seu próprio navegador. O texto é
+O seu texto e as suas configurações ficam guardados no seu próprio navegador. O texto em
+chinês também fica no endereço da página (`?t=`), para poder ser compartilhado. O texto é
 processado ali também. A única coisa que sai da página é o pedido dos traços de cada
 caractere, que vai para o jsDelivr.
 

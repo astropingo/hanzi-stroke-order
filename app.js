@@ -30,6 +30,8 @@
     play: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.5v13l11-6.5z"/></svg>',
     pause: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2h3.6v12H3zM9.4 2H13v12H9.4z"/></svg>',
     restart: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3a5 5 0 1 1-4.6 3H1.3A7 7 0 1 0 8 1V0L4.5 2.5 8 5z"/></svg>',
+    download: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5M4.5 6.5 8 10l3.5-3.5M3 13.5h10"/></svg>',
+    progress: '<svg class="ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="ring-track" cx="8" cy="8" r="6"/><circle class="ring-fill" cx="8" cy="8" r="6" pathLength="1"/></svg>',
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -40,6 +42,7 @@
   const stepBackButton = $('#step-back');
   const stepNextButton = $('#step-next');
   const stepWhere = $('#step-where');
+  const gifButton = $('#gif');
   const repeatBox = $('#repeat');
   const outlineBox = $('#outline');
   const radicalBox = $('#radical');
@@ -185,6 +188,42 @@
   const HAN = '\\u2e80-\\u2eff\\u3007\\u3400-\\u4dbf\\u4e00-\\u9fff\\uf900-\\ufaff\\u{20000}-\\u{323af}';
   // Chinese characters | a line break | other white space | anything else
   const TOKEN = new RegExp(`([${HAN}]+)|(\\s*\\n\\s*)|(\\s+)|([^${HAN}\\s]+)`, 'gu');
+
+  // ---------------------------------------------------------------- the text in the link
+
+  /* The page address carries the text, so a link opens straight on it:
+     …/?t=我没有钱. Only Chinese goes into a link or is taken from one: Chinese characters,
+     Chinese punctuation (、。「」，！ and so on), spaces and line breaks. Anything else in a
+     link is dropped, and a link without a single Chinese character is ignored. */
+  const LINK_PARAM = 't';
+  const NOT_FOR_LINKS = new RegExp(`[^${HAN}\\u3000-\\u303f\\uff00-\\uffef\\s]`, 'gu');
+  const HAS_HAN = new RegExp(`[${HAN}]`, 'u');
+
+  function linkText(text) {
+    const kept = text.replace(NOT_FOR_LINKS, '').trim().slice(0, MAX_TEXT);
+    return HAS_HAN.test(kept) ? kept : '';
+  }
+
+  function textFromLink() {
+    try {
+      return linkText(new URLSearchParams(window.location.search).get(LINK_PARAM) || '');
+    } catch (error) {
+      return '';
+    }
+  }
+
+  /* Keep the address in step with the text box, without adding to the browser history. */
+  function updateLink(text) {
+    try {
+      const url = new URL(window.location.href);
+      const kept = linkText(text);
+      if (kept) url.searchParams.set(LINK_PARAM, kept);
+      else url.searchParams.delete(LINK_PARAM);
+      if (url.href !== window.location.href) window.history.replaceState(null, '', url);
+    } catch (error) {
+      /* opened from a folder, or the browser refuses: the page works without it */
+    }
+  }
 
   // The browser's own word splitter. Every current browser has one; without it the
   // dictionary alone does the splitting.
@@ -344,6 +383,7 @@
   // ---------------------------------------------------------------- building the sheet
 
   let cells = []; // every square on the sheet, in reading order
+  let words = []; // the squares of each word, and the line of the text box it is on
   let glosses = []; // the English line under each word, with all the senses it could show
   let renderId = 0; // bumped on each render so late downloads for an old sheet are dropped
   let retryDownloads = false; // a download failed, so the next change should rebuild the sheet
@@ -381,7 +421,7 @@
     root.append(staff, square, count);
     root.append(buildRadical(char)); // always there, so every square is the same height
 
-    const cell = { char, root, square, target, ghost, count, writer: null, strokes: 0 };
+    const cell = { char, pinyin, root, square, target, ghost, count, writer: null, strokes: 0, data: null, loading: null };
     square.addEventListener('click', () => activateSquare(cell));
     square.addEventListener('keydown', (event) => {
       // Enter only: Space pauses and plays everywhere on the page.
@@ -394,12 +434,22 @@
     return cell;
   }
 
-  function buildWord(token) {
+  function buildWord(token, line) {
     const word = el('section', 'word');
     word.style.setProperty('--n', token.chars.length);
     const strip = el('div', 'strip');
     const wordCells = token.chars.map((entry) => buildCell(entry.char, entry.pinyin));
     strip.append(...wordCells.map((cell) => cell.root));
+    words.push({ cells: wordCells, line });
+
+    // Baixar GIF for this word alone: a small arrow in the corner of its pinyin strip,
+    // shown only while the word is pointed at (see style.css).
+    const gif = el('button', 'icon-button word-gif');
+    gif.type = 'button';
+    gif.innerHTML = ICON.download;
+    gif.title = `Baixar GIF de ${token.text}`;
+    gif.setAttribute('aria-label', gif.title);
+    gif.addEventListener('click', () => downloadGif([{ cells: wordCells, line: 0 }], gif));
 
     const note = el('div', 'note');
     const play = el('button', 'word-play');
@@ -415,7 +465,7 @@
     note.append(play, gloss);
 
     if (token.chars.length === 1) word.classList.add('is-single');
-    word.append(strip, note);
+    word.append(strip, note, gif);
     return word;
   }
 
@@ -452,6 +502,7 @@
     player.scope = null;
     renderId += 1;
     cells = [];
+    words = [];
     glosses = [];
     sheet.replaceChildren();
 
@@ -464,21 +515,23 @@
     let line = el('div', 'line');
     line.lang = 'zh';
     sheet.append(line);
+    let lineNumber = 0;
     for (const token of tokens) {
       if (token.type === 'break') {
         line = el('div', 'line');
         line.lang = 'zh';
         sheet.append(line);
+        lineNumber += 1;
       } else if (token.type === 'text') {
         // Punctuation is set large like the characters; other text is a small side note.
         const hasWords = /[\p{L}\p{N}]/u.test(token.text);
         line.append(el('span', hasWords ? 'aside is-words' : 'aside', token.text));
       } else {
-        line.append(buildWord(token));
+        line.append(buildWord(token, lineNumber));
       }
     }
     fitGlosses();
-    scheduleAutoplay(cells.map((cell) => mountCell(cell, renderId)));
+    scheduleAutoplay(cells.map((cell) => (cell.loading = mountCell(cell, renderId))));
   }
 
   /* A new sheet starts writing itself AUTOPLAY_DELAY after it appears, once the stroke
@@ -524,6 +577,7 @@
     }
 
     const size = squareSize(cell);
+    cell.data = data;
     cell.strokes = data.strokes.length;
     cell.writer = HanziWriter.create(cell.target, cell.char, {
       width: size,
@@ -789,6 +843,7 @@
     const atStart = !player.scope || (player.at.cell === 0 && player.shown === 0);
     stepBackButton.disabled = !ready || atStart;
     stepNextButton.disabled = !ready;
+    gifButton.disabled = !ready;
     showWhere();
   }
 
@@ -823,6 +878,409 @@
     }
   }
 
+  // ---------------------------------------------------------------- downloading a GIF
+
+  /* The writing saved as an animated GIF: the whole sheet (the arrow beside Configurações)
+     or one word (the arrow in the corner of its pinyin strip). The GIF is not a recording
+     of the page: it is drawn here, square by square, from the same stroke data and with the
+     same timing and drawing rules as Hanzi Writer, so it looks the same whatever the screen.
+     It follows the settings in force (speed, outline, radical in red, 米字格 or 田字格) and
+     always loops. Punctuation and notes between words are left out. */
+  const GIF = {
+    cell: 112, // side of a square, border included, in GIF pixels
+    staff: 32, // height of the pinyin strip
+    line: 2, // border width
+    margin: 20,
+    wordGap: 24,
+    rowGap: 22,
+    columns: 8, // squares per row at most
+    frameMs: 40, // one frame every 40 ms while a stroke is being written
+    startMs: 400, // the blank squares, before the first stroke
+    endMs: 1100, // the finished text, before it starts over (as the page does)
+    maxChars: 60, // keeps the file and the wait reasonable
+  };
+  const GIF_COLORS = { paper: '#ffffff', grid: '#3d9b76', gridSoft: '#b3d6c6' };
+  const STROKE_WIDTH = 200; // Hanzi Writer's mask width, in character units
+
+  const hexColor = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+  /* Every colour the GIF can contain: white, and soft steps from white (and from the
+     outline grey) to each colour drawn, for the anti-aliased edges. */
+  function gifPalette() {
+    const white = [255, 255, 255];
+    const mix = (from, to, t) => from.map((v, i) => Math.round(v + (to[i] - v) * t));
+    const palette = [white];
+    const ramp = (from, to, steps) => {
+      for (let i = 1; i <= steps; i += 1) palette.push(mix(from, to, i / steps));
+    };
+    ramp(white, hexColor(INK), 64);
+    ramp(white, hexColor(RED), 40);
+    ramp(white, hexColor(GIF_COLORS.grid), 32);
+    ramp(white, hexColor(GIF_COLORS.gridSoft), 16);
+    ramp(white, hexColor(OUTLINE), 16);
+    ramp(hexColor(OUTLINE), hexColor(INK), 32);
+    ramp(hexColor(OUTLINE), hexColor(RED), 24);
+    return palette; // 225 colours
+  }
+
+  /* Turns canvas pixels into palette indices, remembering each colour's nearest match. */
+  function makeQuantizer(palette) {
+    const memo = new Int16Array(1 << 15).fill(-1);
+    return (rgba) => {
+      const out = new Uint8Array(rgba.length / 4);
+      for (let i = 0, p = 0; i < out.length; i += 1, p += 4) {
+        const key = ((rgba[p] >> 3) << 10) | ((rgba[p + 1] >> 3) << 5) | (rgba[p + 2] >> 3);
+        let index = memo[key];
+        if (index < 0) {
+          const r = ((rgba[p] >> 3) << 3) + 4;
+          const g = ((rgba[p + 1] >> 3) << 3) + 4;
+          const b = ((rgba[p + 2] >> 3) << 3) + 4;
+          let best = Infinity;
+          palette.forEach(([pr, pg, pb], j) => {
+            const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+            if (d < best) {
+              best = d;
+              index = j;
+            }
+          });
+          memo[key] = index;
+        }
+        out[i] = index;
+      }
+      return out;
+    };
+  }
+
+  /* One character's strokes, ready to draw the way Hanzi Writer does: each stroke is
+     revealed along its median line by a thick pen, clipped to the stroke's outline. */
+  function prepareStrokes(data) {
+    const radical = new Set(data.radStrokes || []);
+    return data.strokes.map((path, i) => {
+      const points = data.medians[i].map(([x, y]) => ({ x, y }));
+      let length = 0;
+      for (let j = 1; j < points.length; j += 1) length += Math.hypot(points[j].x - points[j - 1].x, points[j].y - points[j - 1].y);
+      // The median without its collinear points, its start pushed back by half the pen.
+      let mask = points;
+      if (mask.length >= 3) {
+        mask = [points[0], points[1]];
+        for (const point of points.slice(2)) {
+          const [a, b] = mask.slice(-2);
+          if ((point.y - b.y) * (b.x - a.x) - (point.x - b.x) * (b.y - a.y) === 0) mask.pop();
+          mask.push(point);
+        }
+      }
+      if (mask.length >= 2) {
+        const [a, b] = mask;
+        const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        const reach = STROKE_WIDTH / 2;
+        mask = [{ x: a.x + (reach * (a.x - b.x)) / d, y: a.y + (reach * (a.y - b.y)) / d }, ...mask.slice(1)];
+      }
+      return {
+        outline: new Path2D(path),
+        mask,
+        dash: length + STROKE_WIDTH / 2,
+        duration: (length + 600) / 3, // ms at 1×, as Hanzi Writer times a stroke
+        inRadical: radical.has(i),
+      };
+    });
+  }
+
+  /* Where each square goes: words in reading order, at most GIF.columns squares a row, a
+     new row for each new line of the text box and wherever a word would not fit. */
+  function gifLayout(groups) {
+    const { cell: S, staff: H, line: L, margin: M, wordGap, rowGap, columns } = GIF;
+    const items = [];
+    let row = 0;
+    let used = 0;
+    let x = M;
+    let width = 0;
+    let lastLine = null;
+    for (const group of groups) {
+      for (let start = 0; start < group.cells.length; start += columns) {
+        const piece = group.cells.slice(start, start + columns);
+        const newLine = lastLine !== null && group.line !== lastLine;
+        if (used && (newLine || start > 0 || used + piece.length > columns)) {
+          row += 1;
+          used = 0;
+          x = M;
+        }
+        lastLine = group.line;
+        const y = M + row * (H + S + rowGap);
+        piece.forEach((cell, i) => {
+          items.push({
+            char: cell.char,
+            pinyin: cell.pinyin,
+            strokes: cell.data ? prepareStrokes(cell.data) : null,
+            x: x + i * (S - L),
+            y,
+          });
+        });
+        const pieceWidth = piece.length * S - (piece.length - 1) * L;
+        width = Math.max(width, x + pieceWidth + M);
+        x += pieceWidth + wordGap;
+        used += piece.length;
+      }
+    }
+    return { items, width, height: M + (row + 1) * (H + S) + row * rowGap + M };
+  }
+
+  const cssValue = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  /* The pinyin strip and the square's border: drawn once, they never change. */
+  function drawGifFrame(ctx, item) {
+    const { cell: S, staff: H, line: L } = GIF;
+    const { x, y } = item;
+    ctx.fillStyle = GIF_COLORS.grid;
+    ctx.fillRect(x, y, S, L); // the strip: open at the bottom, where the square starts
+    ctx.fillRect(x, y, L, H);
+    ctx.fillRect(x + S - L, y, L, H);
+    ctx.fillRect(x, y + H, S, L); // the square
+    ctx.fillRect(x, y + H + S - L, S, L);
+    ctx.fillRect(x, y + H, L, S);
+    ctx.fillRect(x + S - L, y + H, L, S);
+
+    ctx.fillStyle = GIF_COLORS.gridSoft; // the two dashed lines of the pinyin staff
+    for (const at of [0.33, 0.68]) {
+      for (let dx = 0; dx < S - 2 * L; dx += 8) ctx.fillRect(x + L + dx, y + Math.round(H * at), 4, 1);
+    }
+    if (item.pinyin) {
+      ctx.fillStyle = INK;
+      ctx.font = `16px ${cssValue('--ui')}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(item.pinyin, x + S / 2, y + H / 2 + 1);
+    }
+  }
+
+  /* The inside of a square: guide lines, outline, the first `done` strokes complete and
+     stroke `done` written up to `portion` (0 to 1). */
+  function drawGifSquare(ctx, item, done, portion) {
+    const { cell: S, staff: H, line: L } = GIF;
+    const size = S - 2 * L;
+    const left = item.x + L;
+    const top = item.y + H + L;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(left, top, size, size);
+    ctx.clip();
+    ctx.fillStyle = GIF_COLORS.paper;
+    ctx.fillRect(left, top, size, size);
+
+    ctx.strokeStyle = GIF_COLORS.gridSoft;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    const middle = size / 2 + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(left + middle, top);
+    ctx.lineTo(left + middle, top + size);
+    ctx.moveTo(left, top + middle);
+    ctx.lineTo(left + size, top + middle);
+    if (settings.layout === 'mi') {
+      ctx.moveTo(left, top);
+      ctx.lineTo(left + size, top + size);
+      ctx.moveTo(left + size, top);
+      ctx.lineTo(left, top + size);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (!item.strokes) {
+      // No stroke data: the character as it is, like the page shows it.
+      ctx.fillStyle = INK;
+      ctx.font = `${Math.round(size * 0.66)}px ${cssValue('--han')}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(item.char, left + size / 2, top + size / 2);
+      ctx.restore();
+      return;
+    }
+
+    // Hanzi Writer's placement: 8% padding, a 1024-unit box from y = -124 to 900, y up.
+    const padding = Math.round(size * 0.08);
+    const scale = (size - 2 * padding) / 1024;
+    ctx.translate(left + padding, top + size - padding - 124 * scale);
+    ctx.scale(scale, -scale);
+    const colorOf = (stroke) => (settings.radical && stroke.inRadical ? RED : INK);
+    if (settings.outline) {
+      ctx.fillStyle = OUTLINE;
+      for (const stroke of item.strokes) ctx.fill(stroke.outline);
+    }
+    item.strokes.forEach((stroke, i) => {
+      if (i >= done) return;
+      ctx.fillStyle = colorOf(stroke);
+      ctx.fill(stroke.outline);
+    });
+    const stroke = item.strokes[done];
+    if (stroke && portion > 0 && stroke.mask.length) {
+      ctx.save();
+      ctx.clip(stroke.outline);
+      ctx.strokeStyle = colorOf(stroke);
+      ctx.lineWidth = STROKE_WIDTH;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.setLineDash([stroke.dash, stroke.dash]);
+      ctx.lineDashOffset = 0.999 * stroke.dash * (1 - portion);
+      ctx.beginPath();
+      stroke.mask.forEach((point, j) => (j ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)));
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  const ease = (t) => -Math.cos(t * Math.PI) / 2 + 0.5; // Hanzi Writer's easing
+
+  async function makeGif(groups, onProgress) {
+    await Promise.allSettled(groups.flatMap((group) => group.cells.map((cell) => cell.loading)));
+
+    // At most GIF.maxChars squares.
+    let room = GIF.maxChars;
+    const kept = [];
+    for (const group of groups) {
+      if (room <= 0) break;
+      kept.push({ ...group, cells: group.cells.slice(0, room) });
+      room -= group.cells.length;
+    }
+    const truncated = groups.reduce((sum, group) => sum + group.cells.length, 0) > GIF.maxChars;
+
+    const layout = gifLayout(kept);
+    try {
+      await document.fonts.load(`16px ${cssValue('--ui')}`, layout.items.map((item) => item.pinyin).join(''));
+    } catch (error) {
+      /* the pinyin is drawn in a fallback font */
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = layout.width;
+    canvas.height = layout.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const palette = gifPalette();
+    const quantize = makeQuantizer(palette);
+    const gif = new window.GifWriter(layout.width, layout.height, palette);
+    const speed = settings.speed;
+
+    // The first frame is the whole picture, every square still blank; after it, each
+    // frame only covers the inside of the square being written.
+    ctx.fillStyle = GIF_COLORS.paper;
+    ctx.fillRect(0, 0, layout.width, layout.height);
+    for (const item of layout.items) {
+      drawGifFrame(ctx, item);
+      drawGifSquare(ctx, item, 0, 0);
+    }
+    const screen = quantize(ctx.getImageData(0, 0, layout.width, layout.height).data); // what the GIF shows so far
+    gif.addFrame(0, 0, layout.width, layout.height, screen, GIF.startMs);
+
+    // Each later frame holds only the pixels that changed, the box around them inside
+    // the square being written; a frame with no change just lengthens the one before.
+    const inside = GIF.cell - 2 * GIF.line;
+    const addSquare = (item, ms) => {
+      const left = item.x + GIF.line;
+      const top = item.y + GIF.staff + GIF.line;
+      const pixels = quantize(ctx.getImageData(left, top, inside, inside).data);
+      let [x0, y0, x1, y1] = [inside, inside, -1, -1];
+      for (let y = 0; y < inside; y += 1) {
+        const row = (top + y) * layout.width + left;
+        for (let x = 0; x < inside; x += 1) {
+          if (pixels[y * inside + x] === screen[row + x]) continue;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          y1 = y;
+        }
+      }
+      if (x1 < 0) {
+        gif.extendLastFrame(ms);
+        return;
+      }
+      const w = x1 - x0 + 1;
+      const h = y1 - y0 + 1;
+      const box = new Uint8Array(w * h);
+      for (let y = 0; y < h; y += 1) {
+        const from = (y0 + y) * inside + x0;
+        box.set(pixels.subarray(from, from + w), y * w);
+        screen.set(pixels.subarray(from, from + w), (top + y0 + y) * layout.width + left + x0);
+      }
+      gif.addFrame(left + x0, top + y0, w, h, box, ms);
+    };
+
+    const steps = (stroke) => Math.max(1, Math.round(stroke.duration / speed / GIF.frameMs));
+    const drawn = layout.items.filter((item) => item.strokes);
+    const total = drawn.reduce((sum, item) => sum + item.strokes.reduce((n, stroke) => n + steps(stroke), 0), 0);
+    let made = 0;
+    let lastBreath = performance.now();
+
+    for (const item of drawn) {
+      for (let i = 0; i < item.strokes.length; i += 1) {
+        const stroke = item.strokes[i];
+        const count = steps(stroke);
+        for (let s = 1; s <= count; s += 1) {
+          if (s === count) drawGifSquare(ctx, item, i + 1, 0);
+          else drawGifSquare(ctx, item, i, ease(s / count));
+          addSquare(item, stroke.duration / speed / count);
+          made += 1;
+          if (performance.now() - lastBreath > 30) {
+            // Let the page breathe, and show how far along it is.
+            onProgress(made / total);
+            await new Promise((resolve) => setTimeout(resolve));
+            lastBreath = performance.now();
+          }
+        }
+        gif.extendLastFrame((i < item.strokes.length - 1 ? STROKE_GAP : CHAR_GAP) / speed);
+      }
+    }
+    gif.extendLastFrame(GIF.endMs);
+    onProgress(1);
+    return { blob: gif.finish(), truncated };
+  }
+
+  let gifBusy = false; // one GIF at a time
+
+  function showGifProgress(button, fraction) {
+    if (!button.classList.contains('is-busy')) {
+      button.dataset.title = button.title;
+      button.classList.add('is-busy');
+      button.setAttribute('aria-busy', 'true');
+      button.innerHTML = ICON.progress;
+    }
+    button.querySelector('.ring-fill').style.strokeDashoffset = String(1 - fraction);
+    button.title = `Preparando o GIF… ${Math.round(fraction * 100)}%`;
+  }
+
+  function endGifProgress(button) {
+    button.classList.remove('is-busy');
+    button.removeAttribute('aria-busy');
+    button.innerHTML = ICON.download;
+    button.title = button.dataset.title || button.title;
+  }
+
+  function saveFile(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const link = el('a');
+    link.href = url;
+    link.download = name;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  async function downloadGif(groups, button) {
+    if (gifBusy || !groups.length) return;
+    gifBusy = true;
+    showGifProgress(button, 0);
+    try {
+      const { blob, truncated } = await makeGif(groups, (fraction) => showGifProgress(button, fraction));
+      const text = groups.flatMap((group) => group.cells.map((cell) => cell.char)).join('');
+      saveFile(blob, `${chars(text).slice(0, 24).join('')}.gif`);
+      if (truncated) setStatus(`O GIF mostra só os primeiros ${GIF.maxChars} caracteres.`);
+    } catch (error) {
+      setStatus('Não foi possível criar o GIF. Tente de novo.', true);
+    } finally {
+      gifBusy = false;
+      endGifProgress(button);
+    }
+  }
+
   // ---------------------------------------------------------------- reading the text box
 
   let analyzeTimer = 0;
@@ -836,6 +1294,7 @@
   function analyze() {
     const text = input.value;
     settings.text = text;
+    updateLink(text);
     saveSettings();
     if (!dictionary) return; // still downloading; loadDictionary calls this again
 
@@ -907,6 +1366,8 @@
       return;
     }
     restoreSettings();
+    const linked = textFromLink(); // a shared link wins over the text remembered here
+    if (linked) settings.text = linked;
     input.value = settings.text;
     checkRadio('split', settings.split);
     checkRadio('layout', settings.layout);
@@ -950,6 +1411,8 @@
     playButton.addEventListener('click', togglePlay);
     stepBackButton.addEventListener('click', () => player.step(-1));
     stepNextButton.addEventListener('click', () => player.step(1));
+    gifButton.innerHTML = ICON.download;
+    gifButton.addEventListener('click', () => downloadGif(words, gifButton));
 
     // Keyboard: Space pauses and plays, ← and → step one stroke. Not while typing in the
     // text box or using another control, which have their own use for these keys.

@@ -748,6 +748,97 @@ kbd {
   line-clamp: 3;
 }
 
+/* Baixar GIF: quiet on purpose. In the bar, a bare arrow beside Configurações; on each
+   word, the same arrow in the corner of its pinyin strip, only while the word is pointed
+   at or the arrow has the keyboard focus. While the GIF is being made, a ring fills up. */
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--pencil);
+  cursor: pointer;
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: #e3efe8;
+  color: var(--leaf);
+}
+
+.icon-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sheet-bar-end > .icon-button {
+  margin-right: -14px; /* sits with Configurações rather than on its own */
+}
+
+.icon-button .ring {
+  transform: rotate(-90deg); /* fills from the top */
+}
+
+.ring circle {
+  stroke-width: 2;
+}
+
+.ring .ring-track {
+  stroke: var(--rule);
+}
+
+.ring .ring-fill {
+  stroke: var(--leaf);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.word {
+  position: relative;
+}
+
+.word-gif {
+  position: absolute;
+  z-index: 2; /* above the square being written */
+  top: calc((var(--staff) - 24px) / 2);
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.word-gif svg {
+  width: 14px;
+  height: 14px;
+}
+
+.word:hover .word-gif,
+.word-gif:focus-visible,
+.word-gif.is-busy {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .word-gif {
+    opacity: 0.5;
+  }
+}
+
 /* Punctuation and other text between words: shown small, so the sentence still reads. */
 .aside {
   display: flex;
